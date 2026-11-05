@@ -4179,6 +4179,29 @@ class PostProcessor(object):
             return
         self.tidyup(nzb_dir, True)
 
+    def _manga_target_name(self, filename, parsed, series):
+        """The configured name for a placed manga file, or None to keep it."""
+        from comicarr.app.manga import naming
+
+        # Only a real string is a format: an unset or non-string value keeps the name.
+        file_format = getattr(comicarr.CONFIG, "MANGA_FILE_FORMAT", None)
+        if not isinstance(file_format, str) or not file_format.strip():
+            return None
+        stem, ext = os.path.splitext(filename)
+        new_stem = naming.render_file_stem(
+            filename=stem,
+            parsed=parsed,
+            series=(series or {}).get("ComicName"),
+            year=(series or {}).get("ComicYear"),
+            author=(series or {}).get("ComicPublisher"),
+            file_format=file_format,
+            zero_level=getattr(comicarr.CONFIG, "ZERO_LEVEL", False),
+            zero_level_n=getattr(comicarr.CONFIG, "ZERO_LEVEL_N", None),
+        )
+        if not new_stem or new_stem == stem:
+            return None
+        return new_stem + ext.lower()
+
     def _match_manga_issue(self, parsed):
         """Return the ledger row a parsed manga file belongs to, or None.
 
@@ -4454,6 +4477,14 @@ class PostProcessor(object):
                 if tag_issueid is not None:
                     filepath = self._metatag_manga_file(filepath, tag_issueid)
                     filename = os.path.basename(filepath)
+
+                # Rename to MANGA_FILE_FORMAT when set.
+                # Only for a file that matched one ledger row; the recorded
+                # Location below follows the new name.
+                renamed = self._manga_target_name(filename, parsed, comicnzb)
+                if renamed:
+                    logger.fdebug("%s Renaming manga file: %s -> %s" % (module, filename, renamed))
+                    filename = renamed
 
             dst = os.path.join(series_folder, filename)
 

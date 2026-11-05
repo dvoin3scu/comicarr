@@ -130,6 +130,9 @@ _KEYS: tuple[ConfigKey, ...] = (
     ConfigKey("RENAME_FILES", bool, "General", False),
     ConfigKey("FOLDER_FORMAT", str, "General", "$Series ($Year)", readable=True, writable=True),
     ConfigKey("FILE_FORMAT", str, "General", "$Series $Annual $Issue ($Year)", readable=True, writable=True),
+    # Manga naming: empty keeps the legacy behaviour (see comicarr/app/manga/naming.py).
+    ConfigKey("MANGA_FOLDER_FORMAT", str, "General", "", readable=True, writable=True),
+    ConfigKey("MANGA_FILE_FORMAT", str, "General", "", readable=True, writable=True),
     ConfigKey("REPLACE_SPACES", bool, "General", False, readable=True, writable=True),
     ConfigKey("REPLACE_CHAR", str, "General", None),
     ConfigKey("ZERO_LEVEL", bool, "General", False, readable=True, writable=True),

@@ -259,6 +259,8 @@ def get_comic_content_kind(comic_id):
         select(
             t_comics.c.ComicID,
             t_comics.c.ComicName,
+            t_comics.c.ComicYear,
+            t_comics.c.ComicPublisher,
             t_comics.c.ComicLocation,
             t_comics.c.ContentType,
             t_comics.c.ContentKindSetBy,

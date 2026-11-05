@@ -14,6 +14,8 @@ export interface ReadableConfig {
   create_folders?: boolean;
   folder_format?: string;
   file_format?: string;
+  manga_folder_format?: string;
+  manga_file_format?: string;
   replace_spaces?: boolean;
   zero_level?: boolean;
   zero_level_n?: string;
@@ -156,6 +158,8 @@ export interface WritableConfig {
   create_folders?: boolean;
   folder_format?: string;
   file_format?: string;
+  manga_folder_format?: string;
+  manga_file_format?: string;
   replace_spaces?: boolean;
   zero_level?: boolean;
   zero_level_n?: string;
