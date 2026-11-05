@@ -231,8 +231,10 @@ def _populate_manga_chapters(mangaid, manga_name, mangadex_uuid, mal_num_chapter
     return {"total": total, "issue_count": issue_count, "latest_chapter": latest_chapter}
 
 
-def _manga_series_folder(manga_dest, manga_name, manga_year):
+def _manga_series_folder(manga_dest, manga_name, manga_year, author=None):
     """The library folder for a manga Series being added.
+
+    Fork: MANGA_FOLDER_FORMAT, when set, decides it (see manga.naming_config).
 
     Uses the folder format ("$Series ($Year)" by default), unless that folder
     does not exist yet and one named for the plain title does. Manga libraries
@@ -240,6 +242,8 @@ def _manga_series_folder(manga_dest, manga_name, manga_year):
     the formatted folder beside it left two folders for one Series, with
     Comicarr watching the empty one.
     """
+    if getattr(runtime.current().config, "MANGA_FOLDER_FORMAT", None):
+        return _fork_manga_series_folder(manga_dest, manga_name, manga_year, author)
     folder_format = runtime.current().config.FOLDER_FORMAT or "$Series ($Year)"
     formatted = common_strings.filesafe(folder_format.replace("$Series", manga_name).replace("$Year", str(manga_year)))
     root = os.path.normpath(os.path.abspath(manga_dest))
@@ -337,7 +341,7 @@ def add_mangadex(mangaid, imported=None, calledfrom=None, location=None):
 
     manga_dest = get_manga_destination()
     if manga_dest and not comlocation:
-        comlocation = _manga_series_folder(manga_dest, manga_name, manga_year)
+        comlocation = _manga_series_folder(manga_dest, manga_name, manga_year, manga.get("author"))
 
         if runtime.current().config.CREATE_FOLDERS:
             checkdirectory = directories.validateAndCreateDirectory(comlocation, True)
@@ -508,7 +512,7 @@ def add_myanimelist(mangaid, imported=None, calledfrom=None, location=None):
 
     manga_dest = get_manga_destination()
     if manga_dest and not comlocation:
-        comlocation = _manga_series_folder(manga_dest, manga_name, manga_year)
+        comlocation = _manga_series_folder(manga_dest, manga_name, manga_year, manga.get("author"))
 
         if runtime.current().config.CREATE_FOLDERS:
             checkdirectory = directories.validateAndCreateDirectory(comlocation, True)
@@ -588,3 +592,9 @@ def add_myanimelist(mangaid, imported=None, calledfrom=None, location=None):
     emit_add_activity("succeeded", mangaid, comicname=manga_name)
 
     return {"status": "complete", "comicid": mangaid, "comicname": manga_name, "content_type": "manga"}
+
+
+def _fork_manga_series_folder(manga_dest, manga_name, manga_year, author):
+    from comicarr.app.manga import naming_config
+
+    return naming_config.series_folder(manga_dest, manga_name, year=manga_year, author=author)
