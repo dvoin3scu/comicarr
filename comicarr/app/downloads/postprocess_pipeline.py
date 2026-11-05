@@ -30,6 +30,7 @@ from comicarr.app.common.placement import OnExisting, Outcome, Purpose
 from comicarr.app.common.redaction import redacted_traceback
 from comicarr.app.downloads import journal
 from comicarr.app.downloads.pp_commands import safe_walk
+from comicarr.app.manga import naming_config as manga_naming_config
 from comicarr.app.manga.ledger import is_volume_target, normalize_volume_number
 from comicarr.tables import annuals, comics, issues, snatched, storyarcs, weekly
 
@@ -2021,6 +2022,10 @@ def process_manga_download(run: PostProcessRun, deps: PostProcessItemDeps):
             if tag_issueid is not None:
                 filepath = metatag_manga_file(run, deps, filepath, tag_issueid)
                 filename = os.path.basename(filepath)
+
+        # Fork: MANGA_FILE_FORMAT, for a file owned by one ledger row or volume.
+        if matching is not None or volume_number is not None:
+            filename = manga_naming_config.placed_file_name(filename, parsed, comicnzb, module) or filename
 
         dst = os.path.join(series_folder, filename)
 

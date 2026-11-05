@@ -73,6 +73,27 @@ export function MediaManagementTab({
         />
       </SettingGroup>
 
+      {/* Manga Naming */}
+      <SettingGroup
+        title="Manga Naming"
+        description="Manga metadata has no English publisher: $Author (also $Publisher) is the author and $Year the original start year. Leave a field empty to keep the current behaviour."
+      >
+        <SettingField
+          label="Manga folder format"
+          value={formData.manga_folder_format || ""}
+          onChange={(v) => onChange("manga_folder_format", v as string)}
+          helpText="Pattern for new manga series folders under the manga destination. Use / for subfolders. Variables: $Author, $Series, $Year. Empty: the folder format above."
+          placeholder="$Author/[$Year] $Series"
+        />
+        <SettingField
+          label="Manga file format"
+          value={formData.manga_file_format || ""}
+          onChange={(v) => onChange("manga_file_format", v as string)}
+          helpText="Name for a downloaded manga file. Variables: $Series, $Volume, $Chapter, $Year, $Author. Like $Annual, a number the file does not have is left out with the letter before it (v$Volume, c$Chapter). Uses the issue zero-padding setting. Empty: keep the release name."
+          placeholder="$Series v$Volume c$Chapter"
+        />
+      </SettingGroup>
+
       <SettingGroup
         title="Series Folders"
         description="A series can use its own folder inside any library root. The destination and manga destination directories are always roots."

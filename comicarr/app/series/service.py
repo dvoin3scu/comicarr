@@ -560,14 +560,15 @@ def _manga_destination():
     return get_manga_destination()
 
 
-def manga_series_location(series_name, manga_dest):
-    """Return ``<manga_dest>/<filesafe(series_name)>``, or None if either is missing."""
-    folder = filesafe(series_name) if series_name else ""
-    folder = str(folder).strip() if folder else ""
-    dest = _series_text(manga_dest)
-    if not dest or not folder:
-        return None
-    return os.path.join(dest, folder)
+def manga_series_location(series_name, manga_dest, year=None, author=None):
+    """Return the automatic folder for a manga Series, or None if either is missing.
+
+    ``MANGA_FOLDER_FORMAT`` (e.g. ``$Author/[$Year] $Series``) decides the
+    folder when set; otherwise it stays ``<manga_dest>/<filesafe(series_name)>``.
+    """
+    from comicarr.app.manga import naming_config
+
+    return naming_config.series_folder(manga_dest, series_name, year=year, author=author)
 
 
 def manga_location_for_reclassify(existing, manga_dest):
@@ -584,7 +585,12 @@ def manga_location_for_reclassify(existing, manga_dest):
     if _location_under_manga_dest(old_location, manga_dest):
         return None, None
 
-    new_location = manga_series_location(series_name, manga_dest)
+    new_location = manga_series_location(
+        series_name,
+        manga_dest,
+        year=(existing or {}).get("ComicYear"),
+        author=(existing or {}).get("ComicPublisher"),
+    )
     if new_location is None:
         if not _series_text(manga_dest):
             return None, (

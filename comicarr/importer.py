@@ -1335,10 +1335,7 @@ def addMangaToDB(mangaid, imported=None, calledfrom=None, location=None):
 
     manga_dest = get_manga_destination()
     if manga_dest and not comlocation:
-        folder_format = comicarr.CONFIG.FOLDER_FORMAT or "$Series ($Year)"
-        folder_name = folder_format.replace("$Series", manga_name).replace("$Year", str(manga_year))
-        folder_name = helpers.filesafe(folder_name)
-        comlocation = os.path.join(manga_dest, folder_name)
+        comlocation = _manga_series_folder(manga_dest, manga_name, manga_year, manga.get("author"))
 
         if comicarr.CONFIG.CREATE_FOLDERS:
             checkdirectory = filechecker.validateAndCreateDirectory(comlocation, True)
@@ -1509,10 +1506,7 @@ def addMangaToDB_MAL(mangaid, imported=None, calledfrom=None, location=None):
 
     manga_dest = get_manga_destination()
     if manga_dest and not comlocation:
-        folder_format = comicarr.CONFIG.FOLDER_FORMAT or "$Series ($Year)"
-        folder_name = folder_format.replace("$Series", manga_name).replace("$Year", str(manga_year))
-        folder_name = helpers.filesafe(folder_name)
-        comlocation = os.path.join(manga_dest, folder_name)
+        comlocation = _manga_series_folder(manga_dest, manga_name, manga_year, manga.get("author"))
 
         if comicarr.CONFIG.CREATE_FOLDERS:
             checkdirectory = filechecker.validateAndCreateDirectory(comlocation, True)
@@ -3097,3 +3091,16 @@ def replay_refresh_obligations(*, ledger=None, start_worker=True, maintenance=No
     for run_id in replayed_run_ids:
         ledger.record_dispatch(run_id, DispatchState.ACCEPTED)
     return len(queue_items)
+
+
+def _manga_series_folder(manga_dest, manga_name, manga_year, author):
+    """A new manga Series' folder: MANGA_FOLDER_FORMAT, else the comic FOLDER_FORMAT as before."""
+    from comicarr.app.manga import naming_config
+
+    return naming_config.series_folder(
+        manga_dest,
+        manga_name,
+        year=manga_year,
+        author=author,
+        fallback_format=comicarr.CONFIG.FOLDER_FORMAT or "$Series ($Year)",
+    )

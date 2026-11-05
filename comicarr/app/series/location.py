@@ -109,7 +109,12 @@ def default_series_location(series):
     if series_kind.is_manga(series):
         from comicarr.app.series.service import _manga_destination, manga_series_location
 
-        return manga_series_location(series.get("ComicName"), _manga_destination())
+        return manga_series_location(
+            series.get("ComicName"),
+            _manga_destination(),
+            year=series.get("ComicYear"),
+            author=series.get("ComicPublisher"),
+        )
 
     from comicarr import filers
 
