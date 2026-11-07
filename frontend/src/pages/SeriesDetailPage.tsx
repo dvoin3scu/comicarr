@@ -25,6 +25,7 @@ import {
 import { SeriesContentKind } from "@/components/series/SeriesContentKind";
 import { SeriesSearchProviders } from "@/components/series/SeriesSearchProviders";
 import { SeriesFolder } from "@/components/series/SeriesFolder";
+import { SeriesGroupPanel } from "@/components/series/SeriesGroupPanel";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSearchBlockers } from "@/hooks/useAcquisitionHealth";
@@ -1666,6 +1667,11 @@ export default function SeriesDetailPage() {
                   override={comic.LocationOverride === 1}
                   retained={retainedLocations(comic.RetainedLocations)}
                 />
+              </section>
+            ) : null}
+            {comicId ? (
+              <section>
+                <SeriesGroupPanel comicId={comicId} />
               </section>
             ) : null}
             {comicId && seriesData.searchProviders ? (

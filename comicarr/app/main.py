@@ -424,6 +424,9 @@ def create_app():
     app.include_router(downloads_router)
     app.include_router(opds_router)
     app.include_router(indexer_sync_router)
+    from comicarr.app.series.fork_router import router as series_fork_router
+
+    app.include_router(series_fork_router)
 
     app.state.mcp = McpEndpoint(lambda: app.state.ctx)
     app.router.routes.append(Route("/mcp", endpoint=app.state.mcp))

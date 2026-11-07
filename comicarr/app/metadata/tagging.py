@@ -393,6 +393,7 @@ def run(
 
         manga_volume = manga_volume_for_issue(issueid)
         values = local_values(comversion, manga_volume, readingorder, agerating, module)
+        values.update(_fork_series_group_values(issueid))
         existing = comicinfo.read_tags(filepath)
         # An existing .cbz keeps its tags unless overwriting is on. A converted
         # .cbr has no tags of its own worth keeping.
@@ -492,3 +493,10 @@ def sendnotify(message, filename, module):
         logger.warn("[NOTIFICATION] Unable to send notification: %s" % e)
 
     return
+
+
+def _fork_series_group_values(issueid):
+    """Fork: the ComicInfo SeriesGroup chosen for the issue's series (see series.series_group)."""
+    from comicarr.app.series import series_group
+
+    return series_group.tag_values(issueid)

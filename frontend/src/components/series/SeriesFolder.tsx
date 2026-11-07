@@ -11,9 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
+import { FolderChoice } from "@/components/series/FolderChoice";
+import { useSeriesFolderChoice } from "@/components/series/useSeriesFolderChoice";
 import {
   useUpdateSeriesLocation,
   type SeriesLocationResult,
@@ -79,14 +79,14 @@ export function SeriesFolder({
   retained,
 }: SeriesFolderProps) {
   const [open, setOpen] = useState(false);
-  const [folder, setFolder] = useState(location ?? "");
+  const choice = useSeriesFolderChoice(comicId, location, open);
   const [moveFiles, setMoveFiles] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mutation = useUpdateSeriesLocation();
   const { addToast } = useToast();
 
   const openDialog = () => {
-    setFolder(location ?? "");
+    choice.reset();
     setMoveFiles(false);
     setError(null);
     setOpen(true);
@@ -113,7 +113,7 @@ export function SeriesFolder({
     }
   };
 
-  const trimmed = folder.trim();
+  const trimmed = choice.folder;
 
   return (
     <section
@@ -170,30 +170,19 @@ export function SeriesFolder({
             className="grid gap-4"
             onSubmit={(event) => {
               event.preventDefault();
-              if (trimmed) void save(trimmed);
+              if (choice.isAutomatic) void save(null);
+              else if (trimmed) void save(trimmed);
             }}
           >
-            <div className="grid gap-1.5">
-              <Label htmlFor="series-folder-input">
-                <Trans>Folder</Trans>
-              </Label>
-              <Input
-                id="series-folder-input"
-                value={folder}
-                onChange={(event) => setFolder(event.target.value)}
-                placeholder="/comics/Magazines/Wizard"
-                className="font-mono"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-xs text-muted-foreground">
-                <Trans>
-                  Use the path Comicarr sees. In Docker, that is the path inside
-                  the container. Extra roots are listed under Settings, Folders
-                  and naming.
-                </Trans>
-              </p>
-            </div>
+            <FolderChoice
+              name="series-folder-choice"
+              options={choice.options}
+              selected={choice.selected}
+              onSelect={choice.setSelected}
+              other={choice.other}
+              onOtherChange={choice.setOther}
+              loading={choice.loading}
+            />
 
             <fieldset className="grid gap-2">
               <legend className="mb-1 text-sm font-medium">
@@ -266,7 +255,9 @@ export function SeriesFolder({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={!trimmed || mutation.isPending}
+                  disabled={
+                    (!trimmed && !choice.isAutomatic) || mutation.isPending
+                  }
                   aria-busy={mutation.isPending}
                 >
                   {mutation.isPending ? (

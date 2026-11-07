@@ -14,8 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FolderChoice } from "@/components/series/FolderChoice";
+import {
+  useAddFolderChoice,
+  type AddTarget,
+} from "@/components/search/useAddFolderChoice";
 import type { ComicAddedDetail, SearchResult, ContentType } from "@/types";
 
 interface SearchAddButtonProps {
@@ -38,10 +41,10 @@ export default function SearchAddButton({
   const navigate = useNavigate();
   const comicIdRef = useRef<string | null>(null);
   const [folderOpen, setFolderOpen] = useState(false);
-  const [folder, setFolder] = useState("");
   const [folderError, setFolderError] = useState<string | null>(null);
 
   const isManga = contentType === "manga";
+  const choice = useAddFolderChoice(isManga, folderOpen);
 
   useEffect(() => {
     if (!isProcessing || !comicIdRef.current) return;
@@ -80,12 +83,19 @@ export default function SearchAddButton({
     };
   }, [isProcessing, navigate, addToast]);
 
-  const add = async (folder?: string) => {
+  const add = async (target: AddTarget = {}) => {
+    const { root } = target;
+    // Fork: a chosen library root reads like a folder in the toast below.
+    const folder = target.folder ?? root;
     const id = comic.comicid ?? comic.id;
     comicIdRef.current = id ?? null;
     setIsProcessing(true);
     try {
-      const input = folder ? { id, folder } : id;
+      const input = target.folder
+        ? { id, folder: target.folder }
+        : root
+          ? { id, root }
+          : id;
       const response = (
         isManga
           ? await addMangaMutation.mutateAsync(input)
@@ -129,7 +139,7 @@ export default function SearchAddButton({
   const handleFolderAdd = async () => {
     setFolderError(null);
     try {
-      await add(folder.trim());
+      await add(choice.target());
       setFolderOpen(false);
     } catch (err) {
       setFolderError(err instanceof Error ? err.message : t`Unknown error`);
@@ -187,6 +197,7 @@ export default function SearchAddButton({
         onClick={(e) => {
           e.stopPropagation();
           setFolderError(null);
+          choice.reset();
           setFolderOpen(true);
         }}
         disabled={isPending}
@@ -220,27 +231,15 @@ export default function SearchAddButton({
               void handleFolderAdd();
             }}
           >
-            <div className="grid gap-1.5">
-              <Label htmlFor={`add-folder-${comic.comicid ?? comic.id}`}>
-                <Trans>Folder</Trans>
-              </Label>
-              <Input
-                id={`add-folder-${comic.comicid ?? comic.id}`}
-                value={folder}
-                onChange={(e) => setFolder(e.target.value)}
-                placeholder="/comics/Magazines/Wizard"
-                className="font-mono"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-xs text-muted-foreground">
-                <Trans>
-                  Use the path Comicarr sees. In Docker, that is the path inside
-                  the container. Extra roots are listed under Settings, Folders
-                  and naming.
-                </Trans>
-              </p>
-            </div>
+            <FolderChoice
+              name={`add-folder-${comic.comicid ?? comic.id}`}
+              options={choice.options}
+              selected={choice.selected}
+              onSelect={choice.setSelected}
+              other={choice.other}
+              onOtherChange={choice.setOther}
+              loading={choice.loading}
+            />
             {folderError ? (
               <p role="alert" className="text-sm text-[var(--status-error)]">
                 {folderError}

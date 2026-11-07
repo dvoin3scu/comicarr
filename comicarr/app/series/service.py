@@ -391,7 +391,7 @@ def get_issue_state(ctx, issue_id):
     return {"issue": projected, "series": series or None}
 
 
-def add_comic(ctx, comic_id, folder=None):
+def add_comic(ctx, comic_id, folder=None, root=None):
     """Add a comic to the watchlist (queued on the mass-add worker)."""
     if comic_id.startswith("4050-"):
         comic_id = re.sub("4050-", "", comic_id).strip()
@@ -399,7 +399,7 @@ def add_comic(ctx, comic_id, folder=None):
     from comicarr.app.series import add as series_add
 
     try:
-        location = series_locations.folder_for_new_series(comic_id, folder, ctx.config)
+        location, chosen_root = series_locations.new_series_placement(comic_id, folder, root, ctx.config)
     except series_locations.SeriesLocationError as e:
         return {"success": False, "error": e.detail, "status": e.status}
 
@@ -407,6 +407,8 @@ def add_comic(ctx, comic_id, folder=None):
         watch = {"comicid": comic_id, "comicname": None, "seriesyear": None}
         if location:
             watch["location"] = location
+        if chosen_root:
+            watch["root"] = chosen_root
         series_add.queue_series_adds([watch])
     except Exception as e:
         logger.error("[SERIES] Error adding comic %s: %s" % (comic_id, e))

@@ -74,6 +74,7 @@ def run_mass_add_queue(seriesQueue, issueWantQueue):
                 if item.get("location"):
                     add_kwargs["location"] = item["location"]
                 comic_add.add_comic(item["comicid"], **add_kwargs)
+                _place_added_series(item)
                 if item.get("want"):
                     # Riding on the add item keeps the want behind its add with
                     # no second queue for the worker to retire past.
@@ -291,3 +292,10 @@ def replay_refresh_obligations(*, ledger=None, start_worker=True, maintenance=No
     for run_id in replayed_run_ids:
         ledger.record_dispatch(run_id, DispatchState.ACCEPTED)
     return len(queue_items)
+
+
+def _place_added_series(item):
+    """Fork: move a Series added under a chosen library root (see series.location)."""
+    from comicarr.app.series import location as series_location
+
+    series_location.place_added_series(item)
