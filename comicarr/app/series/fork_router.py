@@ -7,7 +7,7 @@
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
 
-"""Fork routes: library-root folder choices and the ComicInfo series group.
+"""Fork routes: library-root folder choices, the ComicInfo series group and file renames.
 
 Kept apart from ``series/router.py`` so the fork touches upstream routes as
 little as possible.
@@ -18,9 +18,9 @@ from fastapi.responses import JSONResponse
 
 from comicarr.app.core.context import AppContext, get_context
 from comicarr.app.core.security import require_session
+from comicarr.app.series import file_actions, series_group
 from comicarr.app.series import location as series_locations
 from comicarr.app.series import queries as series_queries
-from comicarr.app.series import series_group
 
 router = APIRouter(prefix="/api", tags=["series"])
 
@@ -79,3 +79,38 @@ def update_series_group(comic_id: str, request_body: dict = None):
         return JSONResponse(status_code=404, content={"detail": "Series %s is not in the library." % comic_id})
     series_group.set_choice(comic_id, value)
     return series_group.resolve(comic_id)
+
+
+def _issue_ids(request_body):
+    """None for the whole Series, else the list of IssueIDs; raises ValueError."""
+    issue_ids = (request_body or {}).get("issue_ids")
+    if issue_ids is None:
+        return None
+    if not isinstance(issue_ids, list) or not issue_ids or not all(isinstance(i, (str, int)) for i in issue_ids):
+        raise ValueError("issue_ids must be a non-empty list of issue IDs.")
+    return [str(i) for i in issue_ids]
+
+
+def _file_action(action, comic_id, request_body):
+    try:
+        return action(comic_id, _issue_ids(request_body))
+    except series_locations.SeriesLocationError as e:
+        return JSONResponse(status_code=e.status, content={"detail": e.detail})
+    except file_actions.FileActionError as e:
+        return JSONResponse(status_code=e.status, content={"detail": str(e)})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"detail": str(e)})
+
+
+@router.post("/series/{comic_id}/rename-preview", dependencies=[Depends(require_session)])
+def preview_series_rename(comic_id: str, request_body: dict = None):
+    """Each file's current name and the name its naming format gives it."""
+    return _file_action(
+        lambda cid, ids: file_actions.public_plan(file_actions.rename_plan(cid, ids)), comic_id, request_body
+    )
+
+
+@router.post("/series/{comic_id}/rename", dependencies=[Depends(require_session)])
+def rename_series_files(comic_id: str, request_body: dict = None):
+    """Rename the Series' files (or the given issues') to the naming format."""
+    return _file_action(file_actions.rename_files, comic_id, request_body)

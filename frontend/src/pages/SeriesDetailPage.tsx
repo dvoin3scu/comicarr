@@ -26,6 +26,7 @@ import { SeriesContentKind } from "@/components/series/SeriesContentKind";
 import { SeriesSearchProviders } from "@/components/series/SeriesSearchProviders";
 import { SeriesFolder } from "@/components/series/SeriesFolder";
 import { SeriesGroupPanel } from "@/components/series/SeriesGroupPanel";
+import { SeriesFilesMenu } from "@/components/series/SeriesFilesMenu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useSearchBlockers } from "@/hooks/useAcquisitionHealth";
@@ -1143,6 +1144,7 @@ export default function SeriesDetailPage() {
                       />
                       <Trans>Refresh</Trans>
                     </Button>
+                    {comicId ? <SeriesFilesMenu comicId={comicId} /> : null}
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -1407,6 +1409,13 @@ export default function SeriesDetailPage() {
                   >
                     <Trans>Mark on shelf</Trans>
                   </Button>
+                ) : null}
+                {comicId ? (
+                  <SeriesFilesMenu
+                    comicId={comicId}
+                    issueIds={selectedTargets.map((target) => target.issueId)}
+                    disabled={bulkSetIssueStatus.isPending}
+                  />
                 ) : null}
                 <button
                   type="button"
