@@ -15,9 +15,8 @@ from types import SimpleNamespace
 import pytest
 
 import comicarr
-from comicarr.app.manga import naming
+from comicarr.app.manga import naming, naming_config
 from comicarr.app.series import service as series_service
-from comicarr.postprocessor import PostProcessor
 
 # --- folders -----------------------------------------------------------------
 
@@ -176,16 +175,14 @@ def test_postprocessor_target_name(monkeypatch):
         "CONFIG",
         SimpleNamespace(MANGA_FILE_FORMAT="$Series v$Volume c$Chapter", ZERO_LEVEL=True, ZERO_LEVEL_N="00x"),
     )
-    pp = PostProcessor.__new__(PostProcessor)
     series = {"ComicName": "Gunnm", "ComicYear": "1990", "ComicPublisher": "Yukito Kishiro"}
-    assert pp._manga_target_name("Gunnm_v01.CBZ", {"volume_number": 1}, series) == "Gunnm v001.cbz"
-    assert pp._manga_target_name("Gunnm v001.cbz", {"volume_number": 1}, series) is None
+    assert naming_config.placed_file_name("Gunnm_v01.CBZ", {"volume_number": 1}, series) == "Gunnm v001.cbz"
+    assert naming_config.placed_file_name("Gunnm v001.cbz", {"volume_number": 1}, series) is None
 
 
 def test_postprocessor_target_name_off_by_default(monkeypatch):
     monkeypatch.setattr(comicarr, "CONFIG", SimpleNamespace(MANGA_FILE_FORMAT=""))
-    pp = PostProcessor.__new__(PostProcessor)
-    assert pp._manga_target_name("Gunnm_v01.cbz", {"volume_number": 1}, {"ComicName": "Gunnm"}) is None
+    assert naming_config.placed_file_name("Gunnm_v01.cbz", {"volume_number": 1}, {"ComicName": "Gunnm"}) is None
 
 
 def test_non_string_format_is_ignored():
