@@ -63,7 +63,7 @@ def add_series(
     if not comic_id:
         return JSONResponse(status_code=400, content={"detail": "Missing comic id"})
 
-    result = series_service.add_comic(ctx, comic_id, folder=request_body.get("folder"))
+    result = series_service.add_comic(ctx, comic_id, folder=request_body.get("folder"), root=request_body.get("root"))
     if not result["success"]:
         return JSONResponse(status_code=result.get("status", 500), content={"detail": result.get("error")})
     return result

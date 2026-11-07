@@ -436,7 +436,7 @@ def run(
     else:
         arating = "ageRating="
 
-    tline = ", ".join(part for part in (cvers, rorder, arating) if part is not None)
+    tline = ", ".join(part for part in (cvers, rorder, arating, series_group_field(issueid)) if part is not None)
     tagoptions.extend(["-m", tline])
 
     try:
@@ -743,3 +743,32 @@ def sendnotify(message, filename, module):
         logger.warn("[NOTIFICATION] Unable to send notification: %s" % e)
 
     return
+
+
+def series_group_field(issueid):
+    """Fork: the ``seriesGroup=`` part of ComicTagger's -m line, or None to leave the file's value.
+
+    See ``comicarr.app.series.series_group``. Commas and equals signs are escaped
+    with ComicTagger's caret.
+    """
+    if issueid is None:
+        return None
+    try:
+        from sqlalchemy import select
+
+        from comicarr import db
+        from comicarr.app.series import series_group
+        from comicarr.tables import annuals, issues
+
+        row = db.select_one(select(issues.c.ComicID).where(issues.c.IssueID == issueid))
+        if row is None:
+            row = db.select_one(select(annuals.c.ComicID).where(annuals.c.IssueID == issueid))
+        if row is None:
+            return None
+        group = series_group.group_for_tagging(row["ComicID"])
+    except Exception as e:
+        logger.fdebug("[META-TAGGER] Could not resolve a series group for issue %s: %s" % (issueid, e))
+        return None
+    if group is None:
+        return None
+    return "seriesGroup=%s" % group.replace("^", "").replace(",", "^,").replace("=", "^=")

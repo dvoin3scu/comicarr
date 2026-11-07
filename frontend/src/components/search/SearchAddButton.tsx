@@ -12,8 +12,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FolderChoice } from "@/components/series/FolderChoice";
+import {
+  useAddFolderChoice,
+  type AddTarget,
+} from "@/components/search/useAddFolderChoice";
 import type { ComicAddedDetail, SearchResult, ContentType } from "@/types";
 
 interface SearchAddButtonProps {
@@ -36,10 +39,10 @@ export default function SearchAddButton({
   const navigate = useNavigate();
   const comicIdRef = useRef<string | null>(null);
   const [folderOpen, setFolderOpen] = useState(false);
-  const [folder, setFolder] = useState("");
   const [folderError, setFolderError] = useState<string | null>(null);
 
   const isManga = contentType === "manga";
+  const choice = useAddFolderChoice(isManga, folderOpen);
   const itemLabel = isManga ? "Manga" : "Comic";
 
   useEffect(() => {
@@ -79,12 +82,12 @@ export default function SearchAddButton({
     };
   }, [isProcessing, navigate, addToast]);
 
-  const add = async (folder?: string) => {
+  const add = async ({ folder, root }: AddTarget = {}) => {
     const id = comic.comicid ?? comic.id;
     comicIdRef.current = id ?? null;
     setIsProcessing(true);
     try {
-      const input = folder ? { id, folder } : id;
+      const input = folder ? { id, folder } : root ? { id, root } : id;
       const response = (
         isManga
           ? await addMangaMutation.mutateAsync(input)
@@ -99,9 +102,10 @@ export default function SearchAddButton({
       addToast({
         type: "success",
         title: `Adding ${itemLabel}...`,
-        description: folder
-          ? `${comic.name} is being added to ${folder}. Please wait...`
-          : `${comic.name} is being added to your library. Please wait...`,
+        description:
+          folder || root
+            ? `${comic.name} is being added to ${folder ?? root}. Please wait...`
+            : `${comic.name} is being added to your library. Please wait...`,
         duration: 5000,
       });
     } catch (err) {
@@ -128,7 +132,7 @@ export default function SearchAddButton({
   const handleFolderAdd = async () => {
     setFolderError(null);
     try {
-      await add(folder.trim());
+      await add(choice.target());
       setFolderOpen(false);
     } catch (err) {
       setFolderError(err instanceof Error ? err.message : "Unknown error");
@@ -198,6 +202,7 @@ export default function SearchAddButton({
         onClick={(e) => {
           e.stopPropagation();
           setFolderError(null);
+          choice.reset();
           setFolderOpen(true);
         }}
         disabled={isPending}
@@ -216,8 +221,8 @@ export default function SearchAddButton({
           <DialogHeader>
             <DialogTitle>Add {comic.name} to a folder</DialogTitle>
             <DialogDescription>
-              Choose a folder on the server, inside one of your library roots.
-              Leave it empty to use the automatic folder.
+              Choose the library root for this series, or type a folder inside
+              one of your library roots.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -227,24 +232,15 @@ export default function SearchAddButton({
               void handleFolderAdd();
             }}
           >
-            <div className="grid gap-1.5">
-              <Label htmlFor={`add-folder-${comic.comicid ?? comic.id}`}>
-                Folder
-              </Label>
-              <Input
-                id={`add-folder-${comic.comicid ?? comic.id}`}
-                value={folder}
-                onChange={(e) => setFolder(e.target.value)}
-                placeholder="/comics/Magazines/Wizard"
-                className="font-mono"
-                autoComplete="off"
-                spellCheck={false}
-              />
-              <p className="text-xs text-muted-foreground">
-                Use the path Comicarr sees. In Docker, that is the path inside
-                the container. Extra roots are listed under Settings → Media.
-              </p>
-            </div>
+            <FolderChoice
+              name={`add-folder-${comic.comicid ?? comic.id}`}
+              options={choice.options}
+              selected={choice.selected}
+              onSelect={choice.setSelected}
+              other={choice.other}
+              onOtherChange={choice.setOther}
+              loading={choice.loading}
+            />
             {folderError ? (
               <p role="alert" className="text-sm text-[var(--status-error)]">
                 {folderError}

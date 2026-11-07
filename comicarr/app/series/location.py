@@ -17,14 +17,20 @@ so a move that fails part way never leaves a row pointing at nothing.
 
 import json
 import os
+import time
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import NamedTuple
 
 import comicarr
 from comicarr import logger, series_kind
 from comicarr.app.acquisition.evidence import has_verified_library_file
 from comicarr.app.common import placement
-from comicarr.app.common.library_roots import configured_library_roots, is_strict_library_descendant
+from comicarr.app.common.library_roots import (
+    additional_library_roots,
+    configured_library_roots,
+    is_strict_library_descendant,
+)
 from comicarr.app.imports import finalization as import_finalization
 from comicarr.app.series import queries as series_queries
 
@@ -327,4 +333,191 @@ def change_series_location(ctx, comic_id, folder, *, move_files=False):
     }
     if error:
         result["error"] = error
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Library-root choices (fork): the same series folder under another root.
+# ---------------------------------------------------------------------------
+
+_PLACEMENT_ROOT_KEYS = ("DESTINATION_DIR", "MANGA_DESTINATION_DIR", "MAGAZINE_DESTINATION_DIR")
+
+
+def _config_path(value):
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or value.lower() == "none" or not os.path.isabs(value):
+        return None
+    return os.path.normpath(value)
+
+
+def placement_roots(config):
+    """Roots a Series folder can be placed under: the destinations, then the extra roots.
+
+    Scan-only roots (COMIC_DIR, MANGA_DIR, ...) are left out: they are read, not
+    written to.
+    """
+    if config is None:
+        return []
+    candidates = [_config_path(getattr(config, key, None)) for key in _PLACEMENT_ROOT_KEYS]
+    candidates += [_config_path(root) for root in additional_library_roots(config)]
+    roots, seen = [], set()
+    for root in candidates:
+        if root and _real(root) not in seen:
+            seen.add(_real(root))
+            roots.append(root)
+    return roots
+
+
+def _strictly_under(path, root):
+    path, root = _real(path), _real(root)
+    try:
+        return path != root and os.path.commonpath([path, root]) == root
+    except ValueError:
+        return False
+
+
+def rebase_onto_root(path, root, config):
+    """The folder ``path`` would be under ``root``: same path relative to its own root.
+
+    ``/comics/Image/Die`` rebased onto ``/comics-collected`` is
+    ``/comics-collected/Image/Die``. A path outside every root keeps only its
+    last part.
+    """
+    path = os.path.normpath(path)
+    owners = [r for r in configured_library_roots(config) if _config_path(r) and _strictly_under(path, r)]
+    if owners:
+        owner = max((os.path.normpath(r) for r in owners), key=lambda r: len(_real(r)))
+        relative = os.path.relpath(_real(path), _real(owner))
+    else:
+        relative = os.path.basename(path)
+    return os.path.normpath(os.path.join(root, relative))
+
+
+def matching_placement_root(root, config):
+    """The configured placement root ``root`` names, or None."""
+    root = _config_path(root)
+    if root is None:
+        return None
+    for candidate in placement_roots(config):
+        if _real(candidate) == _real(root):
+            return candidate
+    return None
+
+
+def folder_options(comic_id, config):
+    """The automatic folder and the same folder under every other placement root."""
+    series = series_queries.get_series_location(comic_id)
+    if not series:
+        raise SeriesLocationError("Series %s is not in the library." % comic_id, status=404)
+    automatic = default_series_location(series)
+    current = series.get("ComicLocation")
+    base = automatic or current
+    options, seen = [], set()
+    if base:
+        for root in placement_roots(config):
+            folder = rebase_onto_root(base, root, config)
+            if _real(folder) in seen:
+                continue
+            seen.add(_real(folder))
+            options.append(
+                {
+                    "root": root,
+                    "folder": folder,
+                    "automatic": bool(automatic) and _real(folder) == _real(automatic),
+                }
+            )
+    return {
+        "automatic": automatic,
+        "current": current,
+        "override": is_location_override(series),
+        "options": options,
+    }
+
+
+def root_for_new_series(comic_id, root, config):
+    """Validate an add-time root before the add is queued; None keeps the automatic folder."""
+    if root is None or (isinstance(root, str) and not root.strip()):
+        return None
+    if not isinstance(root, str):
+        raise SeriesLocationError("root must be a server path.")
+    if series_queries.get_series_location(comic_id):
+        raise SeriesLocationError(
+            "This Series is already in the library. Change its folder from the Series page.", status=409
+        )
+    match = matching_placement_root(root, config)
+    if match is None:
+        roots = ", ".join(placement_roots(config)) or "none configured"
+        raise SeriesLocationError("Choose one of the library roots: %s." % roots)
+    return match
+
+
+def new_series_placement(comic_id, folder, root, config):
+    """Validate an add's folder or root. Returns (folder, root); at most one is set."""
+    has_folder = isinstance(folder, str) and folder.strip()
+    has_root = isinstance(root, str) and root.strip()
+    if has_folder and has_root:
+        raise SeriesLocationError("Choose a folder or a library root, not both.")
+    if has_root or (root is not None and not isinstance(root, str)):
+        return None, root_for_new_series(comic_id, root, config)
+    return folder_for_new_series(comic_id, folder, config), None
+
+
+def _series_for_added_id(comic_id):
+    comic_id = str(comic_id)
+    for candidate in (comic_id, comic_id[5:] if comic_id.startswith("4050-") else None):
+        if candidate:
+            series = series_queries.get_series_location(candidate)
+            if series:
+                return series
+    return None
+
+
+def place_added_series(item):
+    """Called by the add queue after each add; acts only when the add chose a root."""
+    root = (item or {}).get("root")
+    if not root:
+        return None
+    try:
+        return place_under_root(item["comicid"], root)
+    except Exception as e:
+        logger.warn("[SERIES-LOCATION] Added %s, but could not place it under %s: %s" % (item.get("comicid"), root, e))
+        return None
+
+
+def place_under_root(comic_id, root, *, attempts=6, wait=5.0):
+    """After an add: move the new Series' automatic folder under the chosen root.
+
+    Runs on the add thread once the Series row exists. A busy library (post-
+    processing, an import being finalized) is retried a few times; any other
+    refusal is logged and the Series keeps its automatic folder.
+    """
+    config = comicarr.CONFIG
+    series = _series_for_added_id(comic_id)
+    if not series:
+        logger.warn("[SERIES-LOCATION] %s was not added, so it cannot be placed under %s" % (comic_id, root))
+        return None
+    base = series.get("ComicLocation") or default_series_location(series)
+    if not base:
+        logger.warn("[SERIES-LOCATION] %s has no folder to place under %s" % (series["ComicID"], root))
+        return None
+    target = rebase_onto_root(base, root, config)
+    previous = series.get("ComicLocation")
+    if previous and _real(previous) == _real(target):
+        return None
+    ctx = SimpleNamespace(config=config)
+    for attempt in range(1, attempts + 1):
+        try:
+            result = change_series_location(ctx, series["ComicID"], target, move_files=True)
+            break
+        except SeriesLocationError as e:
+            if e.status == 409 and attempt < attempts:
+                time.sleep(wait)
+                continue
+            logger.warn("[SERIES-LOCATION] Could not place %s under %s: %s" % (series.get("ComicName"), root, e.detail))
+            return None
+    if result.get("success") and previous and _real(previous) != _real(target):
+        _remove_if_empty(previous)
+        _remove_if_empty(os.path.dirname(previous))
     return result

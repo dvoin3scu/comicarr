@@ -383,6 +383,9 @@ def create_app():
     app.include_router(search_router)
     app.include_router(downloads_router)
     app.include_router(opds_router)
+    from comicarr.app.series.fork_router import router as series_fork_router
+
+    app.include_router(series_fork_router)
 
     frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
     if frontend_dist.is_dir():

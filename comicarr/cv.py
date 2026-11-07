@@ -554,9 +554,8 @@ def GetComicInfo(comicid, dom, safechk=None, series=False):
     except (AttributeError, IndexError):
         comic["Aliases"] = "None"
 
-    if all(
-        [comic_desc != "None", "trade paperback" in comic_desc[:30].lower(), "collecting" in comic_desc[:40].lower()]
-    ):
+    collect_from = collected_edition_links(comic_desc, desc_soup, desclinks if desc_soup is not None else None)
+    if collect_from:
         issue_list = []
         micdrop = []
         if desc_soup is not None:
@@ -567,7 +566,7 @@ def GetComicInfo(comicid, dom, safechk=None, series=False):
                         mic_check = x.find("a")
                         micdrop.append(mic_check["data-ref-id"])
 
-        for fc in desclinks:
+        for fc in collect_from:
             try:
                 fc_id = fc["data-ref-id"]
             except Exception:
@@ -994,13 +993,8 @@ def GetSeriesYears(dom):
             else:
                 tempseries["Type"] = "Print"
 
-        if all(
-            [
-                comic_desc != "None",
-                "trade paperback" in comic_desc[:30].lower(),
-                "collecting" in comic_desc[:40].lower(),
-            ]
-        ):
+        collect_from = collected_edition_links(comic_desc, desc_soup, desclinks if desc_soup is not None else None)
+        if collect_from:
             issue_list = []
             micdrop = []
             if desc_soup is not None:
@@ -1011,7 +1005,7 @@ def GetSeriesYears(dom):
                             mic_check = x.find("a")
                             micdrop.append(mic_check["data-ref-id"])
 
-            for fc in desclinks:
+            for fc in collect_from:
                 try:
                     fc_id = fc["data-ref-id"]
                 except Exception:
@@ -1750,3 +1744,50 @@ def check_that_biatch(comicid, oldinfo, newinfo):
         return True
 
     return False
+
+
+_COLLECT_WORD = re.compile(r"\bcollect(?:s|ing|ed)?\b", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"[.!?]\s+[A-Z]")
+_COLLECTED_REF = ("4000-", "4050-")
+
+
+def collected_edition_links(comic_desc, desc_soup, desclinks=None):
+    """Fork: the description links a collected edition's "Collects ..." points at.
+
+    Upstream only parsed descriptions that open with "Trade paperback
+    collecting"; most ComicVine collected editions instead say, anywhere in the
+    text, "Collects DIE #6-10" with DIE linked to its Series. That older shape
+    still returns every link, exactly as before. Otherwise only the issue and
+    Series links that follow a "collect(s/ing/ed)" in the same block and the same
+    sentence are returned, so a "sequel to <Series>" elsewhere is not mistaken
+    for what the book collects.
+    """
+    if desc_soup is None or not comic_desc or comic_desc == "None":
+        return []
+    text = comic_desc.lower()
+    if "trade paperback" in text[:30] and "collecting" in text[:40]:
+        return desclinks if desclinks is not None else desc_soup.findAll("a")
+
+    from bs4 import NavigableString
+
+    blocks = [block for block in desc_soup.find_all(["p", "li", "h2", "h3", "h4"]) if not block.find(["p", "li"])] or [
+        desc_soup
+    ]
+    links = []
+    for block in blocks:
+        collecting = False
+        for node in block.descendants:
+            if isinstance(node, NavigableString):
+                if node.find_parent("a") is not None:
+                    continue
+                if _COLLECT_WORD.search(node):
+                    tail = node[_COLLECT_WORD.search(node).end() :]
+                    collecting = not _SENTENCE_END.search(tail)
+                elif collecting and _SENTENCE_END.search(node):
+                    collecting = False
+            elif collecting and getattr(node, "name", None) == "a":
+                if str(node.get("data-ref-id", "")).startswith(_COLLECTED_REF) and all(
+                    node is not seen for seen in links
+                ):
+                    links.append(node)
+    return links

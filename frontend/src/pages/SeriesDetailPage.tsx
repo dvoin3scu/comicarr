@@ -15,6 +15,7 @@ import IssueStatusMenu from "@/components/series/IssueStatusMenu";
 import { SeriesContentKind } from "@/components/series/SeriesContentKind";
 import { SeriesSearchProviders } from "@/components/series/SeriesSearchProviders";
 import { SeriesFolder } from "@/components/series/SeriesFolder";
+import { SeriesGroupPanel } from "@/components/series/SeriesGroupPanel";
 import { Button } from "@/components/ui/button";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { Callout } from "@/components/ui/callout";
@@ -852,6 +853,8 @@ export default function SeriesDetailPage() {
                 retained={retainedLocations(comic.RetainedLocations)}
               />
             ) : null}
+
+            {comicId ? <SeriesGroupPanel comicId={comicId} /> : null}
 
             {comicId && seriesData.searchProviders ? (
               <SeriesSearchProviders
