@@ -470,18 +470,9 @@ def manga_series_location(series_name, manga_dest, year=None, author=None):
     ``MANGA_FOLDER_FORMAT`` (e.g. ``$Author/[$Year] $Series``) decides the
     folder when set; otherwise it stays ``<manga_dest>/<filesafe(series_name)>``.
     """
-    from comicarr.app.manga import naming
+    from comicarr.app.manga import naming_config
 
-    dest = _series_text(manga_dest)
-    fmt = getattr(getattr(comicarr, "CONFIG", None), "MANGA_FOLDER_FORMAT", None)
-    relative = naming.render_folder(fmt, series=series_name, year=year, author=author)
-    if dest and relative:
-        return os.path.join(dest, *relative.split("/"))
-    folder = filesafe(series_name) if series_name else ""
-    folder = str(folder).strip() if folder else ""
-    if not dest or not folder:
-        return None
-    return os.path.join(dest, folder)
+    return naming_config.series_folder(manga_dest, series_name, year=year, author=author)
 
 
 def manga_location_for_reclassify(existing, manga_dest):
