@@ -917,6 +917,11 @@ class GC(object):
                             link_matched = True
 
         else:
+            volume_links = volume_list_links(soup, packinfo, pack) if not link_type_failure else []
+            if volume_links:
+                return self._queue_download_batch(
+                    id, mainlink, volume_links, volume_links_name(volume_links), comicinfo, packinfo
+                )
             logger.info("No valid items available that I am able to download from. Not downloading...")
             return {"success": False, "links_exhausted": link_type_failure}
 
@@ -1564,3 +1569,70 @@ class GC(object):
 
         pack_issues.sort()
         logger.fdebug("pack_issues: %s" % pack_issues)
+
+
+# ---------------------------------------------------------------------------
+# Fork: older GetComics pages list one "Main Server" link per volume.
+# ---------------------------------------------------------------------------
+
+_VOLUME_LINE = re.compile(
+    r"^(?P<series>.+?)\s*(?:#|\bVol(?:ume)?\.?\s*)(?P<issues>\d+(?:\s*-\s*\d+)?)\s*"
+    r"\((?P<year>\d{4})\)\s*\((?P<size>[^)]+)\)",
+    re.IGNORECASE,
+)
+
+
+def _wanted_numbers(packinfo):
+    try:
+        return {str(int(float(n))) for n in packinfo["pack_issuelist"]["issue_range"]}
+    except Exception:
+        return None
+
+
+def volume_links_name(links):
+    return "%s (%s)" % (links[0]["series"], links[0]["year"])
+
+
+def volume_list_links(soup, packinfo=None, pack=None):
+    """The "Main Server" link of each volume an older GetComics page lists.
+
+    Such pages carry no "Download Now" button: each ``<li>`` names a volume,
+    "Grass Kings Vol. 1 (2018) (322 MB) : Main Server | Mega | ...". With pack
+    information, only the volumes inside the wanted range are kept. A retry
+    after a failed download never comes here (the caller passes no failures):
+    re-queuing the whole list would download every volume again.
+    """
+    wanted = _wanted_numbers(packinfo)
+    links = []
+    for item in soup.find_all("li"):
+        main = next(
+            (
+                a
+                for a in item.find_all("a", href=True)
+                if a.get_text(strip=True).lower() == "main server" and "sh.st" not in a["href"]
+            ),
+            None,
+        )
+        if main is None:
+            continue
+        found = _VOLUME_LINE.match(item.get_text(" ", strip=True).replace("\u2013", "-"))
+        if not found:
+            continue
+        issues = re.sub(r"\s+", "", found["issues"])
+        first, _, last = issues.partition("-")
+        if wanted is not None and not {str(int(first)), str(int(last or first))} <= wanted:
+            continue
+        links.append(
+            {
+                "series": found["series"].strip(),
+                "site": "Main Server",
+                "year": found["year"],
+                "issues": issues,
+                "size": found["size"].strip(),
+                "links": main["href"],
+                "pack": pack,
+            }
+        )
+    if links:
+        logger.info("[DDL-GATHERER-OF-LINKAGE] Found %d volume link(s) on a per-volume list page." % len(links))
+    return links
