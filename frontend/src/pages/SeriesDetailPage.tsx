@@ -16,6 +16,7 @@ import { SeriesContentKind } from "@/components/series/SeriesContentKind";
 import { SeriesSearchProviders } from "@/components/series/SeriesSearchProviders";
 import { SeriesFolder } from "@/components/series/SeriesFolder";
 import { SeriesGroupPanel } from "@/components/series/SeriesGroupPanel";
+import { SeriesFilesMenu } from "@/components/series/SeriesFilesMenu";
 import { Button } from "@/components/ui/button";
 import { ToggleChip } from "@/components/ui/toggle-chip";
 import { Callout } from "@/components/ui/callout";
@@ -950,6 +951,7 @@ export default function SeriesDetailPage() {
                 />
                 Refresh
               </Button>
+              {comicId ? <SeriesFilesMenu comicId={comicId} /> : null}
               {comicId ? (
                 <Button variant="outline" size="toolbar" asChild>
                   <Link
@@ -1232,6 +1234,13 @@ export default function SeriesDetailPage() {
               }
               onSelect={(status) => void handleBulkSetStatus(status)}
             />
+            {comicId ? (
+              <SeriesFilesMenu
+                comicId={comicId}
+                issueIds={selectedTargets.map((target) => target.issueId)}
+                disabled={bulkSetIssueStatus.isPending}
+              />
+            ) : null}
             <button
               type="button"
               onClick={() => setSelectedRows(new Set())}

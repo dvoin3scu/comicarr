@@ -1,6 +1,6 @@
 /**
- * Fork: library-root choices in the add and folder dialogs, and the series
- * group panel.
+ * Fork: library-root choices in the add and folder dialogs, the series group
+ * panel, and the Files menu.
  */
 import { describe, expect, it } from "vitest";
 import { waitFor } from "@testing-library/react";
@@ -11,6 +11,7 @@ import { render, screen } from "../test-utils";
 import SearchAddButton from "@/components/search/SearchAddButton";
 import { SeriesFolder } from "@/components/series/SeriesFolder";
 import { SeriesGroupPanel } from "@/components/series/SeriesGroupPanel";
+import { SeriesFilesMenu } from "@/components/series/SeriesFilesMenu";
 import type { SearchResult } from "@/types";
 
 const die = { comicid: "119531", id: "119531", name: "Die" } as SearchResult;
@@ -193,9 +194,8 @@ describe("SeriesGroupPanel", () => {
     expect(screen.getByText("from Collects")).toBeTruthy();
   });
 
-  it("saves a chosen name and starts a re-tag", async () => {
+  it("saves a chosen name", async () => {
     const patched: unknown[] = [];
-    const retagged: unknown[] = [];
     server.use(
       http.get("/api/series/124800/series-group", () =>
         HttpResponse.json({ value: null, source: null, chosen: false }),
@@ -208,10 +208,6 @@ describe("SeriesGroupPanel", () => {
           chosen: true,
         });
       }),
-      http.post("/api/metadata/metatag/group", async ({ request }) => {
-        retagged.push(await request.json());
-        return HttpResponse.json({ success: true });
-      }),
     );
     const user = userEvent.setup();
     render(<SeriesGroupPanel comicId="124800" />);
@@ -223,10 +219,8 @@ describe("SeriesGroupPanel", () => {
     await user.type(screen.getByLabelText("Group name"), "Die");
     await user.click(screen.getByRole("button", { name: "Save group" }));
     await waitFor(() => expect(patched).toEqual([{ value: "Die" }]));
-
-    await user.click(screen.getByRole("button", { name: /Re-tag files/ }));
-    await waitFor(() => expect(retagged).toEqual([{ comic_id: "124800" }]));
-    expect(await screen.findByText("Re-tagging started")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Re-tag files/ })).toBeNull();
+    expect(screen.queryByText(/Written to ComicInfo/)).toBeNull();
   });
 
   it("saves no group as an empty name", async () => {
@@ -247,5 +241,138 @@ describe("SeriesGroupPanel", () => {
     await user.click(screen.getByRole("button", { name: "Save group" }));
 
     await waitFor(() => expect(patched).toEqual([{ value: "" }]));
+  });
+});
+
+describe("SeriesFilesMenu", () => {
+  const plan = {
+    content_type: "manga",
+    to_rename: 1,
+    conflicts: 1,
+    items: [
+      {
+        issue_id: "1",
+        table: "issues",
+        number: "1",
+        folder: "/data/read/manga-collected/Viz/Dandadan",
+        current: "Dandadan 001 (2022).cbz",
+        proposed: "Dandadan v001.cbz",
+        status: "rename",
+      },
+      {
+        issue_id: "2",
+        table: "issues",
+        number: "2",
+        folder: "/data/read/manga-collected/Viz/Dandadan",
+        current: "dandadan 2.cbz",
+        proposed: "Dandadan v002.cbz",
+        status: "conflict",
+      },
+      {
+        issue_id: "3",
+        table: "issues",
+        number: "3",
+        folder: "/data/read/manga-collected/Viz/Dandadan",
+        current: "Dandadan v003.cbz",
+        proposed: "Dandadan v003.cbz",
+        status: "unchanged",
+      },
+    ],
+  };
+
+  function serveFiles() {
+    const calls: { url: string; body: unknown }[] = [];
+    const record =
+      (answer: unknown) =>
+      async ({ request }: { request: Request }) => {
+        calls.push({
+          url: new URL(request.url).pathname,
+          body: await request.json(),
+        });
+        return HttpResponse.json(answer);
+      };
+    server.use(
+      http.post("/api/series/145549/rename-preview", record(plan)),
+      http.post(
+        "/api/series/145549/rename",
+        record({
+          success: true,
+          renamed: 1,
+          conflicts: 1,
+          files: [],
+          errors: [],
+        }),
+      ),
+      http.post("/api/metadata/metatag/group", record({ success: true })),
+      http.post("/api/metadata/metatag/bulk", record({ success: true })),
+    );
+    return calls;
+  }
+
+  it("previews the new names and renames the whole series", async () => {
+    const calls = serveFiles();
+    const user = userEvent.setup();
+    render(<SeriesFilesMenu comicId="145549" />);
+
+    await user.click(screen.getByRole("button", { name: "File actions" }));
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Rename files…" }),
+    );
+
+    expect((await screen.findByTestId("rename-summary")).textContent).toContain(
+      "1 file to rename. 1 already named correctly.",
+    );
+    expect(screen.getAllByTestId("rename-item")).toHaveLength(2);
+    expect(screen.getByText(/already exists, skipped/)).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Rename 1 file" }));
+    await waitFor(() =>
+      expect(calls.map((call) => call.url)).toEqual([
+        "/api/series/145549/rename-preview",
+        "/api/series/145549/rename",
+      ]),
+    );
+    expect(calls[1].body).toEqual({});
+    expect(await screen.findByText("Files renamed")).toBeTruthy();
+  });
+
+  it("re-tags only the selected issues", async () => {
+    const calls = serveFiles();
+    const user = userEvent.setup();
+    render(<SeriesFilesMenu comicId="145549" issueIds={["1", "3"]} />);
+
+    await user.click(
+      screen.getByRole("button", { name: "File actions for selected issues" }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Re-tag files" }),
+    );
+
+    await waitFor(() =>
+      expect(calls).toEqual([
+        {
+          url: "/api/metadata/metatag/bulk",
+          body: { comic_id: "145549", issue_ids: ["1", "3"] },
+        },
+      ]),
+    );
+    expect(await screen.findByText("Re-tagging started")).toBeTruthy();
+  });
+
+  it("re-tags the whole series from the series menu", async () => {
+    const calls = serveFiles();
+    const user = userEvent.setup();
+    render(<SeriesFilesMenu comicId="145549" />);
+
+    await user.click(screen.getByRole("button", { name: "File actions" }));
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Re-tag files" }),
+    );
+
+    await waitFor(() =>
+      expect(calls).toEqual([
+        { url: "/api/metadata/metatag/group", body: { comic_id: "145549" } },
+      ]),
+    );
   });
 });

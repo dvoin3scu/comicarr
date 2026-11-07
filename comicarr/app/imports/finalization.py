@@ -175,6 +175,9 @@ def _destination_path(row: dict, series_id: str, series_name: str, target_direct
     source_path = row["ComicLocation"]
     original_filename = row.get("ComicFilename") or os.path.basename(source_path)
     destination_filename = original_filename
+    manga_filename = _manga_import_file_name(row, series_id, original_filename, config)
+    if manga_filename is not None:
+        return os.path.join(target_directory, manga_filename)
 
     if getattr(config, "IMP_RENAME", False) and getattr(config, "FILE_FORMAT", ""):
         issue_number = _issue_number(row)
@@ -621,3 +624,10 @@ def finalize_manual_match(
     except Exception as e:
         logger.warn("[IMPORT-MATCH] Metatagging failed after import of %s: %s" % (series_id, e))
     return result
+
+
+def _manga_import_file_name(row, series_id, original_filename, config):
+    """Fork: a manga Series takes MANGA_FILE_FORMAT, not FILE_FORMAT (None for a comic)."""
+    from comicarr.app.series import file_actions
+
+    return file_actions.manga_import_file_name(row, series_id, original_filename, config)

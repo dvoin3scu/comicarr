@@ -1,5 +1,6 @@
 /**
- * Fork: library-root folder choices and the ComicInfo series group.
+ * Fork: library-root folder choices, the ComicInfo series group, and
+ * renaming or re-tagging a series' files.
  * Kept in its own module so upstream hooks stay untouched.
  */
 import {
@@ -93,9 +94,95 @@ export function useUpdateSeriesGroup(): UseMutationResult<
   });
 }
 
-export function useRetagSeries(): UseMutationResult<unknown, Error, string> {
+export type RenameStatus = "rename" | "unchanged" | "conflict";
+
+export interface RenameItem {
+  issue_id: string;
+  table: "issues" | "annuals";
+  number: string | null;
+  folder: string;
+  current: string;
+  proposed: string;
+  status: RenameStatus;
+}
+
+export interface RenamePlan {
+  content_type: "comic" | "manga";
+  items: RenameItem[];
+  to_rename: number;
+  conflicts: number;
+}
+
+export interface RenameResult {
+  success: boolean;
+  renamed: number;
+  conflicts: number;
+  files: { issue_id: string; from: string; to: string }[];
+  errors: string[];
+}
+
+export interface SeriesFilesInput {
+  comicId: string;
+  /** The issues to act on; omitted for the whole series. */
+  issueIds?: string[];
+}
+
+function filesBody(issueIds?: string[]) {
+  return issueIds ? { issue_ids: issueIds } : {};
+}
+
+export function useRenamePreview(
+  { comicId, issueIds }: SeriesFilesInput,
+  enabled: boolean,
+): UseQueryResult<RenamePlan> {
+  return useQuery({
+    queryKey: ["rename-preview", comicId, issueIds ?? "all"],
+    queryFn: () =>
+      apiRequest<RenamePlan>(
+        "POST",
+        `/api/series/${comicId}/rename-preview`,
+        filesBody(issueIds),
+      ),
+    enabled,
+    gcTime: 0,
+    staleTime: 0,
+  });
+}
+
+export function useRenameFiles(): UseMutationResult<
+  RenameResult,
+  Error,
+  SeriesFilesInput
+> {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (comicId: string) =>
-      apiRequest("POST", "/api/metadata/metatag/group", { comic_id: comicId }),
+    mutationFn: ({ comicId, issueIds }) =>
+      apiRequest<RenameResult>(
+        "POST",
+        `/api/series/${comicId}/rename`,
+        filesBody(issueIds),
+      ),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["series"] });
+    },
+  });
+}
+
+/** Re-tag the whole series, or only the given issues. */
+export function useRetagFiles(): UseMutationResult<
+  unknown,
+  Error,
+  SeriesFilesInput
+> {
+  return useMutation({
+    mutationFn: ({ comicId, issueIds }) =>
+      issueIds
+        ? apiRequest("POST", "/api/metadata/metatag/bulk", {
+            comic_id: comicId,
+            issue_ids: issueIds,
+          })
+        : apiRequest("POST", "/api/metadata/metatag/group", {
+            comic_id: comicId,
+          }),
   });
 }
