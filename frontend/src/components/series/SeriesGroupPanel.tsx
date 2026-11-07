@@ -1,10 +1,11 @@
 /**
  * Fork: the ComicInfo <SeriesGroup> this series' files are tagged with, so a
  * reader can collect the single issues, trade paperbacks and omnibuses of one
- * story together. Lets the operator choose it and re-tag the files.
+ * story together. Lets the operator choose it; the series' Files menu
+ * re-tags the files.
  */
 import { useState } from "react";
-import { LoaderCircle, Tags } from "lucide-react";
+import { Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 import {
-  useRetagSeries,
   useSeriesGroup,
   useUpdateSeriesGroup,
   type SeriesGroup,
@@ -47,7 +47,6 @@ function errorText(error: unknown, fallback: string) {
 export function SeriesGroupPanel({ comicId }: { comicId: string }) {
   const group = useSeriesGroup(comicId);
   const update = useUpdateSeriesGroup();
-  const retag = useRetagSeries();
   const { addToast } = useToast();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("automatic");
@@ -76,28 +75,10 @@ export function SeriesGroupPanel({ comicId }: { comicId: string }) {
         title: "Series group saved",
         description: `${
           result.value ? `Group: ${result.value}.` : "No group."
-        } Re-tag the files to write it into them.`,
+        } Use Files, then Re-tag files, to write it into them.`,
       });
     } catch (saveError) {
       setError(errorText(saveError, "Comicarr could not save the group."));
-    }
-  };
-
-  const runRetag = async () => {
-    try {
-      await retag.mutateAsync(comicId);
-      addToast({
-        type: "success",
-        title: "Re-tagging started",
-        description:
-          "Comicarr is writing the tags into this series' files in the background.",
-      });
-    } catch (retagError) {
-      addToast({
-        type: "error",
-        title: "Could not start re-tagging",
-        description: errorText(retagError, "The log has the reason."),
-      });
     }
   };
 
@@ -119,26 +100,8 @@ export function SeriesGroupPanel({ comicId }: { comicId: string }) {
           <p className="mono-meta mt-1 break-all" data-testid="series-group">
             {group.isLoading ? "…" : (data?.value ?? "None")}
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Written to ComicInfo as SeriesGroup. Readers such as Kavita collect
-            series that share it.
-          </p>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void runRetag()}
-            disabled={retag.isPending}
-          >
-            {retag.isPending ? (
-              <LoaderCircle
-                className="animate-spin motion-reduce:animate-none"
-                aria-hidden="true"
-              />
-            ) : null}
-            Re-tag files
-          </Button>
           <Button variant="outline" size="sm" onClick={openDialog}>
             <Tags aria-hidden="true" />
             Change group
@@ -155,7 +118,8 @@ export function SeriesGroupPanel({ comicId }: { comicId: string }) {
             <DialogTitle>Series group</DialogTitle>
             <DialogDescription>
               The group the files of this series are tagged with. New files get
-              it when they are tagged; re-tag to update the files you have.
+              it when they are tagged; use Files, then Re-tag files, to update
+              the files you have.
             </DialogDescription>
           </DialogHeader>
           <form

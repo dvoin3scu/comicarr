@@ -19,6 +19,7 @@ import { SeriesContentKind } from "@/components/series/SeriesContentKind";
 import { SeriesSearchProviders } from "@/components/series/SeriesSearchProviders";
 import { SeriesFolder } from "@/components/series/SeriesFolder";
 import { SeriesGroupPanel } from "@/components/series/SeriesGroupPanel";
+import { SeriesFilesMenu } from "@/components/series/SeriesFilesMenu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import {
@@ -1014,6 +1015,7 @@ export default function SeriesDetailPage() {
                       />
                       Refresh
                     </Button>
+                    {comicId ? <SeriesFilesMenu comicId={comicId} /> : null}
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
@@ -1209,6 +1211,13 @@ export default function SeriesDetailPage() {
                   }
                   onSelect={(status) => void handleBulkSetStatus(status)}
                 />
+                {comicId ? (
+                  <SeriesFilesMenu
+                    comicId={comicId}
+                    issueIds={selectedTargets.map((target) => target.issueId)}
+                    disabled={bulkSetIssueStatus.isPending}
+                  />
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setSelectedRows(new Set())}
