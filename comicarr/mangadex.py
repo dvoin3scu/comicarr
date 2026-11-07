@@ -76,7 +76,7 @@ def _make_request(endpoint, params=None, method="GET"):
     _rate_limit()
 
     url = f"{MANGADEX_API_BASE}{endpoint}"
-    headers = {"User-Agent": comicarr.CONFIG.CV_USER_AGENT if comicarr.CONFIG else "Comicarr/1.0"}
+    headers = {"User-Agent": mangadex_user_agent()}
 
     try:
         if method == "GET":
@@ -100,6 +100,9 @@ def _make_request(endpoint, params=None, method="GET"):
             "[MANGADEX] HTTP %s for %s (request-id: %s): %s"
             % (status_code, endpoint, request_id, detail or "No response body")
         )
+        return None
+    except requests.exceptions.JSONDecodeError:
+        _log_non_json_answer(endpoint, response)
         return None
     except requests.exceptions.RequestException as e:
         logger.error("[MANGADEX] Request failed: %s" % e)
@@ -900,3 +903,31 @@ def clear_cache():
     _MANGA_CACHE = {}
     _CHAPTER_CACHE = {}
     logger.info("[MANGADEX] Caches cleared")
+
+
+# ---------------------------------------------------------------------------
+# Fork: MangaDex identifies Comicarr by its own User-Agent.
+# ---------------------------------------------------------------------------
+
+
+def mangadex_user_agent():
+    """Comicarr's own User-Agent for MangaDex.
+
+    MangaDex refuses clients that pose as a web browser (it answers with an HTML
+    page, not JSON), so the browser-like ComicVine agent is never sent here.
+    """
+    version = getattr(comicarr, "CURRENT_VERSION", None)
+    return "Comicarr/%s (+https://github.com/frankieramirez/comicarr)" % (version or "1.0")
+
+
+def _log_non_json_answer(endpoint, response):
+    body = " ".join((getattr(response, "text", "") or "").split())[:200]
+    logger.error(
+        "[MANGADEX] %s answered HTTP %s with %s instead of JSON: %s"
+        % (
+            endpoint,
+            getattr(response, "status_code", "?"),
+            (getattr(response, "headers", None) or {}).get("Content-Type", "no content type"),
+            body or "an empty body",
+        )
+    )
