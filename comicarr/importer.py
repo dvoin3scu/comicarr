@@ -147,6 +147,7 @@ def addvialist(seriesQueue, issueWantQueue):
                 if item.get("location"):
                     add_kwargs["location"] = item["location"]
                 addComictoDB(item["comicid"], **add_kwargs)
+                _place_added_series(item)
                 if item.get("want"):
                     # Riding on the add item keeps the want behind its add with
                     # no second queue for the worker to retire past.
@@ -3104,3 +3105,10 @@ def _manga_series_folder(manga_dest, manga_name, manga_year, author):
         author=author,
         fallback_format=comicarr.CONFIG.FOLDER_FORMAT or "$Series ($Year)",
     )
+
+
+def _place_added_series(item):
+    """Fork: move a Series added under a chosen library root (see series.location)."""
+    from comicarr.app.series import location as series_location
+
+    series_location.place_added_series(item)

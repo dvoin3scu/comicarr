@@ -141,7 +141,8 @@ export function useSearchManga(
   });
 }
 
-export type AddSeriesInput = string | { id: string; folder?: string };
+export type AddSeriesInput =
+  string | { id: string; folder?: string; root?: string };
 
 function addSeriesBody(input: AddSeriesInput) {
   return typeof input === "string" ? { id: input } : input;
