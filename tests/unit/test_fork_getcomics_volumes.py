@@ -70,3 +70,19 @@ def test_the_grab_queues_every_volume_when_no_download_button_is_found(tmp_path,
     assert item_id == "117629"
     assert filename == "Grass Kings (2018)"
     assert [link["issues"] for link in links] == ["1", "2", "3"]
+
+
+def test_a_retry_after_a_failed_link_does_not_queue_the_volumes_again(tmp_path, monkeypatch):
+    cache = tmp_path / "html_cache"
+    cache.mkdir()
+    shutil.copy(PAGE, cache / "getcomics-117629-1.html")
+    monkeypatch.setattr(comicarr, "CONFIG", SimpleNamespace(CACHE_DIR=str(tmp_path)), raising=False)
+    gc = getcomics.GC.__new__(getcomics.GC)
+
+    with patch.object(getcomics.GC, "loadsite"), patch.object(getcomics.GC, "_queue_download_batch") as queue:
+        result = gc.parse_downloadresults(
+            "117629-1", "https://getcomics.org/x", comicinfo=[{"booktype": "TPB"}], link_type_failure=["GC-Main"]
+        )
+
+    queue.assert_not_called()
+    assert result == {"success": False, "links_exhausted": ["GC-Main"]}

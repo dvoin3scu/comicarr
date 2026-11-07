@@ -907,7 +907,7 @@ class GC(object):
                             link_matched = True
 
         else:
-            volume_links = volume_list_links(soup, packinfo, pack)
+            volume_links = volume_list_links(soup, packinfo, pack) if not link_type_failure else []
             if volume_links:
                 return self._queue_download_batch(
                     id, mainlink, volume_links, volume_links_name(volume_links), comicinfo, packinfo
@@ -1586,7 +1586,9 @@ def volume_list_links(soup, packinfo=None, pack=None):
 
     Such pages carry no "Download Now" button: each ``<li>`` names a volume,
     "Grass Kings Vol. 1 (2018) (322 MB) : Main Server | Mega | ...". With pack
-    information, only the volumes inside the wanted range are kept.
+    information, only the volumes inside the wanted range are kept. A retry
+    after a failed download never comes here (the caller passes no failures):
+    re-queuing the whole list would download every volume again.
     """
     wanted = _wanted_numbers(packinfo)
     links = []
