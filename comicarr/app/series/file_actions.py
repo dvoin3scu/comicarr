@@ -19,6 +19,7 @@ import os
 
 from comicarr import db, logger, series_kind
 from comicarr.app.manga import naming_config as manga_naming
+from comicarr.app.manga import volume_holdings
 from comicarr.app.series import location as series_location
 from comicarr.app.series import queries as series_queries
 
@@ -38,6 +39,8 @@ def _series(comic_id):
 
 
 def _issue_row(table, issue_id):
+    if table == volume_holdings.TABLE:
+        return volume_holdings.volume_row(issue_id)
     return db.raw_select_one("SELECT * FROM %s WHERE IssueID=?" % table, [issue_id]) or {}
 
 
@@ -112,7 +115,7 @@ def rename_plan(comic_id, issue_ids=None):
             {
                 "issue_id": holding.issue_id,
                 "table": holding.table,
-                "number": row.get("Issue_Number"),
+                "number": row.get("Issue_Number") or row.get("VolumeNumber"),
                 "folder": os.path.dirname(holding.path),
                 "current": current,
                 "proposed": proposed,
