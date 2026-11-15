@@ -379,6 +379,7 @@ def get_series_holdings(comic_id):
             )
         )
     )
+    rows.extend(_fork_volume_holdings(comic_id))
     return rows
 
 
@@ -396,11 +397,13 @@ def relocate_series(comic_id, *, location, override, retained, holding_locations
             {"ComicID": comic_id},
         )
         for table, issue_id, holding_location in holding_locations:
-            db.upsert_conn(conn, table, {"Location": holding_location}, {"IssueID": issue_id})
+            if not _fork_set_volume_location(table, issue_id, holding_location, conn):
+                db.upsert_conn(conn, table, {"Location": holding_location}, {"IssueID": issue_id})
 
 
 def set_holding_location(table, issue_id, location):
-    db.upsert(table, {"Location": location}, {"IssueID": issue_id})
+    if not _fork_set_volume_location(table, issue_id, location):
+        db.upsert(table, {"Location": location}, {"IssueID": issue_id})
 
 
 def set_retained_locations(comic_id, retained):
@@ -1111,3 +1114,16 @@ def get_issues_full(comic_id):
 def get_issue_full(comic_id, issue_id):
     """Get a single issue by comic and issue ID, all columns."""
     return db.select_all(select(t_issues).where(t_issues.c.ComicID == comic_id).where(t_issues.c.IssueID == issue_id))
+
+
+def _fork_volume_holdings(comic_id):
+    """Fork: downloaded manga volumes are holdings too (see manga.volume_holdings)."""
+    from comicarr.app.manga import volume_holdings
+
+    return volume_holdings.holdings(comic_id)
+
+
+def _fork_set_volume_location(table, volume_id, location, conn=None):
+    from comicarr.app.manga import volume_holdings
+
+    return volume_holdings.set_location(table, volume_id, location, conn)
