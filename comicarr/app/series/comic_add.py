@@ -1730,7 +1730,7 @@ def check_annuals(ComicName, SeriesYear, comicid, issuetype, issuechk, annualsli
 
     annualyear = SeriesYear
     logger.fdebug("[IMPORTER-ANNUAL] - Annual Year:" + str(annualyear))
-    sresults = mb.findComic(annComicName, mode, issue=None, check_annuals=True)
+    sresults = mb.findComic(annComicName, mode, issue=None, annual_check=True)
     if not sresults:
         return
 
@@ -1863,7 +1863,7 @@ def check_annuals(ComicName, SeriesYear, comicid, issuetype, issuechk, annualsli
 
     elif sresults is None or len(sresults) == 0:
         logger.fdebug("[IMPORTER-ANNUAL] - No results, removing the year from the agenda and re-querying.")
-        sresults = mb.findComic(annComicName, mode, issue=None, check_annuals=True)
+        sresults = mb.findComic(annComicName, mode, issue=None, annual_check=True)
         if not sresults:
             return
         elif len(sresults) == 1:
